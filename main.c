@@ -8,29 +8,50 @@
 // 매크로
 #define MAX_COMMAND 1024	// 명령어 최대 크기
 #define MAX_SELECT 3		// 선택가능한 알고리즘 최대 크기
+#define MAX_PSTREAM 100000	// 페이지 스트림 최대 크기
+#define MIN_PSTREAM 500		// 페이지 스트림 최소 크기
 #define FNAME_R "samplestream.txt" // 사용자 생성 파일명
+#define FNAME_OPT "ouput_opt.txt"  // Optimal 알고리즘 결과 저장 파일
 
 // 구조체
 typedef struct Page
 {
 	int num;
 }Page;
+typedef struct Deque
+{
+	Page * page;
+	int rear, front;
+	int cnt;
+}Deque;
 
 // 함수원형
 int split_command(char *command, char *seperator, char *argv[]);
 void create_random_pstream();
 void create_fopen_pstream();
 void print_pstream();
-void optimal();
 
+void init_deque(Deque *q);					
+bool is_empty(Deque *q);					
+bool is_full(Deque *q);					
+bool deque_search(Deque *q, int find);					
+bool add_rear(Deque *q, Page page);		
+Page delete_front(Deque *q);				
+bool add_front(Deque *q, Page page);		
+Page delete_rear(Deque *q);		
+void deque_print(Deque *q);	
+
+int optimal();
+void optimal_preplace(Deque *q, int index, FILE* fp);
+void optimal_pfault(Deque *q, int index, FILE* fp);
 
 // 전역변수
 Page pstream[100000];		// 페이지 스트림
-int pstream_size = 500;		// 페이지 스트림 크기 (min: 500)
+int pstream_size = MIN_PSTREAM;		// 페이지 스트림 크기 (min: 500)
 int pframe_num;				// 페이지 프레임 개수
 int input_method;			// 데이터 입력 방식
 bool isOptimal, isFIFO, isLIFO, isLRU, isLFU, isSC, isESC, isALL;	// 사용자가 선택할 알고리즘
-
+int opt_pfault;				// Optimal 알고리즘 Page Fault 횟수 (비교용)
 
 
 
@@ -107,6 +128,8 @@ int main(void)
 		fprintf(stderr,"Input Error: 페이지 프레임의 개수 범위는 3~10 입니다.\n");
 		exit(1);
 	}
+	else
+		pframe_num++;
 	
 
 	// C. 데이터 입력 방식 선택
@@ -137,7 +160,9 @@ int main(void)
 
 	// 페이지 교체 알고리즘 실행
 	// 다른 알고리즘과 비교를 위해 Optimal 알고리즘은 기본적으로 실행
-	optimal();
+	opt_pfault = optimal();
+
+	
 	
     
 
@@ -173,7 +198,7 @@ void create_random_pstream()
 	srand(time(NULL));	
 
 	//최소 500개의 페이지 스트링
-	for(int i=0; i<500; i++)
+	for(int i=0; i<MIN_PSTREAM; i++)
 	{	
 		// 1~30 범위의 페이지 스트링
 		int random = (rand() % 30) + 1;
@@ -255,7 +280,233 @@ void print_pstream()
 	printf("\n\n");
 }
 
-void optimal()
+// Deque 초기화
+void init_deque(Deque *q) 
 {
+	q->page = (Page*)malloc(sizeof(Page)*(pframe_num));
+	q->front = q->rear = 0;
+}
+
+// Deque 비어있는지 검사
+bool is_empty(Deque *q) 
+{
+	if (q->front == q->rear) return true;
+	else return false;
+}
+
+// Deque 가득 찼는지 검사
+bool is_full(Deque *q) 
+{
+	if (((q->rear + 1) % pframe_num) == q->front)
+	{
+		return true;
+	} 
+	else return false;
+}
+
+// Deque 뒤에 Page 추가
+bool add_rear(Deque *q, Page page) 
+{
+	if (is_full(q)) 
+	{
+		return false;
+	}
+	q->rear = (q->rear + 1) % pframe_num;
+	q->page[q->rear] = page;
+	q->cnt++;
+	return true;
+}
+
+// Deque 뒤에 요소를 반환 후 삭제
+Page delete_rear(Deque *q) 
+{
+	Page tmp;
+	if (!is_empty(q)) 
+	{
+		tmp = q->page[q->rear];
+		q->rear = (q->rear - 1 + pframe_num) % pframe_num;
+		q->cnt--;
+	}
+	return tmp;
+}
+
+// Deque 앞에 Page 추가
+bool add_front(Deque *q, Page page) 
+{
+	if (is_full(q)) 
+	{
+		return false;
+	}
+	q->page[q->front] = page;
+	q->front = (q->front - 1 + pframe_num) % pframe_num;
+	q->cnt++;
+	return true;
+}
+
+// Deque 앞에 Page를 반환
+Page get_front(Deque *q) 
+{
+	Page tmp;
+	if (is_empty(q)) 
+	{
+		return tmp;
+	}
+	return tmp = q->page[(q->front + 1) % pframe_num];
+}
+
+// Deque 앞에 Page를 삭제 후 반환
+Page delete_front(Deque *q) 
+{
+	Page tmp;
+	if (!is_empty(q)) 
+	{
+		tmp = get_front(q);
+		q->front = (q->front + 1) % pframe_num;
+		q->cnt--;
+	}
+	return tmp;
+}
+
+// Deque 에서 원하는 Page 탐색
+bool deque_search(Deque *q, int find) 
+{
+	// Deque 가 비어있을 경우 -> PageFault
+	if (is_empty(q)) 
+	{
+		return false;
+	}
+
+	int i = (q->front + 1) % pframe_num;
+	while (i != q->rear) 
+	{
+		if(q->page[i].num == find)
+		{
+			return true;
+		}
+		i = (i + 1) % pframe_num;
+	}
+	if(q->page[i].num == find)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+void deque_print(Deque *q) {
+	if(!is_empty(q))
+	{
+		int i = q->front;
+		do
+		{
+			i = (i+1) % (pframe_num);
+			printf("%d | ",q->page[i].num);
+		} while (i != q->rear);
+		
+	}
+	printf("\n");
+}
+
+int optimal()
+{
+	
+	// 페이지 프레임 개수 만큼 할당, Deque 초기화
+	Deque q;
+    init_deque(&q);
+	int pfault = 0;
+
+
+	// 결과를 저장할 파일 open
+	FILE *fp;
+	if((fp = fopen(FNAME_OPT,"w+")) == NULL)
+	{
+		fprintf(stderr, "fopen error for %s\n",FNAME_OPT);
+		exit(1);
+	}
+
+
+	// 페이지 스트림 읽기
+	for(int i=0; i<pstream_size; i++)
+	{	
+		// 페이지 프레임 중 원하는 Page 탐색
+		if(!deque_search(&q, pstream[i].num))
+		{
+			//존재하지 않을 경우 -> Page Fault
+			pfault++;
+			optimal_pfault(&q,i,fp);
+		}
+		//deque_print(&q);
+
+	}
+
+	//Page Fault 총 횟수 출력
+	printf("Total Page Fault: %d\n\n",pfault);
+	fprintf(fp,"Total Page Fault: %d\n\n",pfault);
+	
+	//메모리 해제
+	free(q.page);
+	fclose(fp);
+
+	return pfault;
+}
+
+// Optimal 알고리즘 Page Fault 처리 함수
+void optimal_pfault(Deque *q, int index,FILE* fp)
+{
+	Page new;
+	new.num = pstream[index].num;
+
+	//가득 찼을 경우
+	if(is_full(q))
+	{
+		//page replacement
+		optimal_preplace(q,index,fp);
+
+	}
+	//가득 차지 않았을 경우 
+	else
+	{
+		//deque 에 page 추가
+		add_rear(q,new);
+		printf("Page Fault: Add Page %d\n",pstream[index].num);
+		fprintf(fp,"Page Fault: Add Page %d\n",pstream[index].num);
+	}
+}
+
+void optimal_preplace(Deque *q, int index,FILE* fp)
+{
+	int longest = -1;
+	int longest_index;
+
+	if(!is_empty(q))
+	{
+		int i = q->front;
+		do
+		{
+			i = (i+1) % (pframe_num);
+			int j=index;
+			while(j<pstream_size)
+			{
+				if (q->page[i].num == pstream[j].num)
+				{
+					break;
+				}
+				j++;
+			}
+
+			if(j>longest)
+			{
+				longest = j;
+				longest_index = i;
+			}
+
+		} while (i != q->rear);
+		
+	}
+	
+	printf("Page Fault: Replace Page %d -> Page %d\n",q->page[longest_index].num,pstream[index].num);
+	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",q->page[longest_index].num,pstream[index].num);
+	q->page[longest_index] = pstream[index];
 
 }
+

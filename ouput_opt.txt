@@ -1,0 +1,11 @@
+Page Fault: Add Page 8
+Page Fault: Add Page 1
+Page Fault: Add Page 2
+Page Fault: Replace Page 8 -> Page 3
+Page Fault: Replace Page 2 -> Page 4
+Page Fault: Replace Page 1 -> Page 5
+Page Fault: Replace Page 5 -> Page 1
+Page Fault: Replace Page 4 -> Page 2
+Page Fault: Replace Page 3 -> Page 8
+Total Page Fault: 9
+
