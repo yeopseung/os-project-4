@@ -13,6 +13,7 @@
 #define FNAME_R "samplestream.txt" // 사용자 생성 파일명
 #define FNAME_OPT "ouput_opt.txt"  // Optimal 알고리즘 결과 저장 파일
 #define FNAME_FIFO "ouput_fifo.txt"  // FIFO 알고리즘 결과 저장 파일
+#define FNAME_LIFO "output_lifo.txt" // LIFO 알고리즘 결과 저장 파일
 
 // 구조체
 typedef struct Page
@@ -49,6 +50,10 @@ void OPT_preplace(Deque *q, int index, FILE* fp);
 void FIFO();
 void FIFO_pfault(Deque *q, int index, FILE* fp);
 void FIFO_preplace(Deque* q,int index,FILE* fp);
+
+void LIFO();
+void LIFO_pfault(Deque *q, int index, FILE* fp);
+void LIFO_preplace(Deque* q,int index,FILE* fp);
 
 // 전역변수
 Page pstream[100000];		// 페이지 스트림
@@ -170,7 +175,7 @@ int main(void)
 	if(isALL)
 	{
 		FIFO();
-		//LIFO();
+		LIFO();
 		//LRU();
 		//LFU();
 		//SC();
@@ -181,8 +186,8 @@ int main(void)
 		if(isFIFO)
 			FIFO();
 		
-		// if(isLIFO)
-		// 	//LIFO();
+		if(isLIFO)
+			LIFO();
 		
 		// if(isLRU)
 		// 	//LRU();
@@ -637,6 +642,107 @@ void FIFO_preplace(Deque* q,int index,FILE* fp)
 	// 처음 들어간 것을 가장 먼저 삭제
 	Page del;
 	del = delete_front(q);
+
+	// 새로운 Page 추가
+	add_rear(q,pstream[index]);
+
+	printf("Page Fault: Replace Page %d -> Page %d\n",del.num,pstream[index].num);
+	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",del.num,pstream[index].num);
+}
+
+
+// LIFO 알고리즘
+void LIFO()
+{
+	// 페이지 프레임 개수 만큼 할당, Deque 초기화
+	Deque q;
+    init_deque(&q);
+	int pfault = 0;
+
+
+	// 결과를 저장할 파일 open
+	FILE *fp;
+	if((fp = fopen(FNAME_LIFO,"w+")) == NULL)
+	{
+		fprintf(stderr, "fopen error for %s\n",FNAME_LIFO);
+		exit(1);
+	}
+
+	printf(">> LIFO <<\n");
+	fprintf(fp,">> LIFO <<\n");
+
+
+	// 페이지 스트림 읽기
+	for(int i=0; i<pstream_size; i++)
+	{	
+		// 페이지 프레임 중 원하는 Page 탐색
+		if(!deque_search(&q, pstream[i].num))
+		{
+			//존재하지 않을 경우 -> Page Fault
+			pfault++;
+			LIFO_pfault(&q,i,fp);
+		}
+		//deque_print(&q);
+
+	}
+
+	//Page Fault 총 횟수 출력
+	printf("Total Page Fault: %d\n",pfault);
+	fprintf(fp,"Total Page Fault: %d\n",pfault);
+
+	//Optimal 과 비교
+	if(pfault > opt_pfault)
+	{
+		printf("Difference Of Page Fault: LIFO %d > Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LIFO %d > Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else if(pfault == opt_pfault)
+	{
+		printf("Difference Of Page Fault: LIFO %d == Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LIFO %d == Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else
+	{
+		printf("Difference Of Page Fault: LIFO %d < Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LIFO %d < Optimal %d\n\n",pfault,opt_pfault);
+	}
+	
+	
+	//메모리 해제
+	free(q.page);
+	fclose(fp);
+
+}
+
+// LIFO 알고리즘 Page Fault 처리 함수
+void LIFO_pfault(Deque *q, int index,FILE* fp)
+{
+	Page new;
+	new.num = pstream[index].num;
+
+	//가득 찼을 경우
+	if(is_full(q))
+	{
+		//page replacement
+		LIFO_preplace(q,index,fp);
+
+	}
+	//가득 차지 않았을 경우 
+	else
+	{
+		//deque 에 page 추가
+		add_rear(q,new);
+		printf("Page Fault: Add Page %d\n",pstream[index].num);
+		fprintf(fp,"Page Fault: Add Page %d\n",pstream[index].num);
+	}
+}
+
+// LIFO Page 교체 함수
+void LIFO_preplace(Deque* q,int index,FILE* fp)
+{	
+	// 마지막에 들어간 것을 가장 먼저 삭제
+	Page del;
+	del = delete_rear(q);
 
 	// 새로운 Page 추가
 	add_rear(q,pstream[index]);
