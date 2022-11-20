@@ -1,3 +1,4 @@
+>> Optimal <<
 Page Fault: Add Page 8
 Page Fault: Add Page 1
 Page Fault: Add Page 2

@@ -12,6 +12,7 @@
 #define MIN_PSTREAM 500		// 페이지 스트림 최소 크기
 #define FNAME_R "samplestream.txt" // 사용자 생성 파일명
 #define FNAME_OPT "ouput_opt.txt"  // Optimal 알고리즘 결과 저장 파일
+#define FNAME_FIFO "ouput_fifo.txt"  // FIFO 알고리즘 결과 저장 파일
 
 // 구조체
 typedef struct Page
@@ -41,9 +42,13 @@ bool add_front(Deque *q, Page page);
 Page delete_rear(Deque *q);		
 void deque_print(Deque *q);	
 
-int optimal();
-void optimal_preplace(Deque *q, int index, FILE* fp);
-void optimal_pfault(Deque *q, int index, FILE* fp);
+int OPT();
+void OPT_pfault(Deque *q, int index, FILE* fp);
+void OPT_preplace(Deque *q, int index, FILE* fp);
+
+void FIFO();
+void FIFO_pfault(Deque *q, int index, FILE* fp);
+void FIFO_preplace(Deque* q,int index,FILE* fp);
 
 // 전역변수
 Page pstream[100000];		// 페이지 스트림
@@ -160,11 +165,38 @@ int main(void)
 
 	// 페이지 교체 알고리즘 실행
 	// 다른 알고리즘과 비교를 위해 Optimal 알고리즘은 기본적으로 실행
-	opt_pfault = optimal();
+	opt_pfault = OPT();
 
-	
-	
-    
+	if(isALL)
+	{
+		FIFO();
+		//LIFO();
+		//LRU();
+		//LFU();
+		//SC();
+		//ESC();
+	}
+	else
+	{
+		if(isFIFO)
+			FIFO();
+		
+		// if(isLIFO)
+		// 	//LIFO();
+		
+		// if(isLRU)
+		// 	//LRU();
+
+		// if(isLFU)
+		// 	//LFU();
+		
+		// if(isSC)
+		// 	//SC();
+		
+		// if(isESC)
+		// 	//ESC();
+		
+	}
 
 
 
@@ -407,9 +439,8 @@ void deque_print(Deque *q) {
 	printf("\n");
 }
 
-int optimal()
+int OPT()
 {
-	
 	// 페이지 프레임 개수 만큼 할당, Deque 초기화
 	Deque q;
     init_deque(&q);
@@ -424,6 +455,9 @@ int optimal()
 		exit(1);
 	}
 
+	printf(">> Optimal <<\n");
+	fprintf(fp,">> Optimal <<\n");
+
 
 	// 페이지 스트림 읽기
 	for(int i=0; i<pstream_size; i++)
@@ -433,7 +467,7 @@ int optimal()
 		{
 			//존재하지 않을 경우 -> Page Fault
 			pfault++;
-			optimal_pfault(&q,i,fp);
+			OPT_pfault(&q,i,fp);
 		}
 		//deque_print(&q);
 
@@ -451,7 +485,7 @@ int optimal()
 }
 
 // Optimal 알고리즘 Page Fault 처리 함수
-void optimal_pfault(Deque *q, int index,FILE* fp)
+void OPT_pfault(Deque *q, int index,FILE* fp)
 {
 	Page new;
 	new.num = pstream[index].num;
@@ -460,7 +494,7 @@ void optimal_pfault(Deque *q, int index,FILE* fp)
 	if(is_full(q))
 	{
 		//page replacement
-		optimal_preplace(q,index,fp);
+		OPT_preplace(q,index,fp);
 
 	}
 	//가득 차지 않았을 경우 
@@ -473,7 +507,8 @@ void optimal_pfault(Deque *q, int index,FILE* fp)
 	}
 }
 
-void optimal_preplace(Deque *q, int index,FILE* fp)
+// Optimal Page 교체 함수
+void OPT_preplace(Deque *q, int index,FILE* fp)
 {
 	int longest = -1;
 	int longest_index;
@@ -510,3 +545,102 @@ void optimal_preplace(Deque *q, int index,FILE* fp)
 
 }
 
+// FIFO 알고리즘
+void FIFO()
+{
+	// 페이지 프레임 개수 만큼 할당, Deque 초기화
+	Deque q;
+    init_deque(&q);
+	int pfault = 0;
+
+
+	// 결과를 저장할 파일 open
+	FILE *fp;
+	if((fp = fopen(FNAME_FIFO,"w+")) == NULL)
+	{
+		fprintf(stderr, "fopen error for %s\n",FNAME_FIFO);
+		exit(1);
+	}
+
+	printf(">> FIFO <<\n");
+	fprintf(fp,">> FIFO <<\n");
+
+
+	// 페이지 스트림 읽기
+	for(int i=0; i<pstream_size; i++)
+	{	
+		// 페이지 프레임 중 원하는 Page 탐색
+		if(!deque_search(&q, pstream[i].num))
+		{
+			//존재하지 않을 경우 -> Page Fault
+			pfault++;
+			FIFO_pfault(&q,i,fp);
+		}
+		//deque_print(&q);
+
+	}
+
+	//Page Fault 총 횟수 출력
+	printf("Total Page Fault: %d\n",pfault);
+	fprintf(fp,"Total Page Fault: %d\n",pfault);
+
+	//Optimal 과 비교
+	if(pfault > opt_pfault)
+	{
+		printf("Difference Of Page Fault: FIFO %d > Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: FIFO %d > Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else if(pfault == opt_pfault)
+	{
+		printf("Difference Of Page Fault: FIFO %d == Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: FIFO %d == Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else
+	{
+		printf("Difference Of Page Fault: FIFO %d < Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: FIFO %d < Optimal %d\n\n",pfault,opt_pfault);
+	}
+	
+	
+	//메모리 해제
+	free(q.page);
+	fclose(fp);
+
+}
+
+// FIFO 알고리즘 Page Fault 처리 함수
+void FIFO_pfault(Deque *q, int index,FILE* fp)
+{
+	Page new;
+	new.num = pstream[index].num;
+
+	//가득 찼을 경우
+	if(is_full(q))
+	{
+		//page replacement
+		FIFO_preplace(q,index,fp);
+
+	}
+	//가득 차지 않았을 경우 
+	else
+	{
+		//deque 에 page 추가
+		add_rear(q,new);
+		printf("Page Fault: Add Page %d\n",pstream[index].num);
+		fprintf(fp,"Page Fault: Add Page %d\n",pstream[index].num);
+	}
+}
+
+// FIFO Page 교체 함수
+void FIFO_preplace(Deque* q,int index,FILE* fp)
+{	
+	// 처음 들어간 것을 가장 먼저 삭제
+	Page del;
+	del = delete_front(q);
+
+	// 새로운 Page 추가
+	add_rear(q,pstream[index]);
+
+	printf("Page Fault: Replace Page %d -> Page %d\n",del.num,pstream[index].num);
+	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",del.num,pstream[index].num);
+}
