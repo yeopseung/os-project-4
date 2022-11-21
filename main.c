@@ -329,6 +329,7 @@ void create_fopen_pstream()
 	}
 }
 
+// 페이지 스트림을 50개 단위로 쪼개 출력하는 함수
 void print_pstream()
 {	
 	printf("\n>> Page Stream <<\n");
@@ -456,7 +457,9 @@ bool deque_search(Deque *q, int find)
 	return false;
 }
 
-void deque_print(Deque *q) {
+// Deque 에 저장된 Page들을 출력 (Debug 용)
+void deque_print(Deque *q) 
+{
 	if(!is_empty(q))
 	{
 		int i = q->front;
@@ -470,94 +473,87 @@ void deque_print(Deque *q) {
 	printf("\n");
 }
 
-Page* addToEmpty(Page* last, int num, int ref) {
-  if (last != NULL) return last;
+// CircularQueue가 비어있을 때 Page를 추가하는 함수
+Page* addToEmpty(Page* last, int num, int ref) 
+{
+  if (last != NULL) 
+  	return last;
 
-  // allocate memory to the new node
+  //Page 메모리 할당 및 초기값 설정
   Page* newNode = (Page*)malloc(sizeof(Page));
 
-  // assign data to the new node
   newNode->num = num;
   newNode->ref = ref;
 
-  // assign last to newNode
+  //연결
   last = newNode;
-
-  // create link to iteself
   last->next = last;
 
   return last;
 }
 
-// add node to the front
-Page* addFront(Page* last, int num,int ref) {
-  // check if the list is empty
-  if (last == NULL) return addToEmpty(last, num,ref);
+// CircularQueue 앞에 Page 추가
+Page* addFront(Page* last, int num,int ref) 
+{
+  // CircularQueue가 비어있을 경우 addToEmpty 실행
+  if (last == NULL) 
+  	return addToEmpty(last, num,ref);
 
-  // allocate memory to the new node
+  //Page 메모리 할당 및 초기값 설정
   Page* newNode = (Page*)malloc(sizeof(Page));
 
-  // add data to the node
   newNode->num = num;
   newNode->ref = ref;
 
-  // store the address of the current first node in the newNode
+  //연결
   newNode->next = last->next;
-
-  // make newNode as head
   last->next = newNode;
 
   return last;
 }
 
-// add node to the end
-Page* addEnd(Page* last, int num, int ref) {
-  // check if the node is empty
-  if (last == NULL) return addToEmpty(last, num,ref);
+// CircularQueue 뒤에 Page 추가
+Page* addEnd(Page* last, int num, int ref) 
+{
+  // CircularQueue가 비어있을 경우 addToEmpty 실행
+  if (last == NULL) 
+  	return addToEmpty(last, num,ref);
 
-  // allocate memory to the new node
+  //Page 메모리 할당 및 초기값 설정
   Page* newNode = (Page*)malloc(sizeof(Page));
 
-  // add data to the node
   newNode->num = num;
   newNode->ref = ref;
 
-  // store the address of the head node to next of newNode
+  //연결
   newNode->next = last->next;
-
-  // point the current last node to the newNode
   last->next = newNode;
-
-  // make newNode as the last node
   last = newNode;
 
   return last;
 }
 
-// insert node after a specific node
+// CircularQueue 에서 특정 값(item) 뒤에 Page 추가
 Page* addAfter(Page* last, int num, int item) {
-  // check if the list is empty
-  if (last == NULL) return NULL;
+  // CircularQueue 비어있는지 체크
+  if (last == NULL) 
+  	return NULL;
 
   Page *newNode, *p;
 
   p = last->next;
   do {
-  // if the item is found, place newNode after it
+  // 특정 값 item 을 찾았을 때 -> 뒤에 추가
   if (p->num == item) {
-    // allocate memory to the new node
+    // 새로운 Page 할당 및 초기화
     newNode = (Page*)malloc(sizeof(Page));
-
-    // add data to the node
     newNode->num = num;
 
-    // make the next of the current node as the next of newNode
+	//연결
     newNode->next = p->next;
-
-    // put newNode to the next of p
     p->next = newNode;
 
-    // if p is the last node, make newNode as the last node
+    // 맨 뒤에 추가할 경우 last 와도 연결
     if (p == last) last = newNode;
     return last;
   }
@@ -565,54 +561,63 @@ Page* addAfter(Page* last, int num, int item) {
   p = p->next;
   } while (p != last->next);
 
-  printf("\nThe given node is not present in the list");
+  
   return last;
 }
 
 
 
-// delete a node
+// CircularQueue 에서 key값을 가지는 Page 삭제
 void deletePage(Page** last, int key) {
-  // if linked list is empty
-  if (*last == NULL) return;
+  // CircularQueue 비어있는지 체크
+  if (*last == NULL) 
+  	return;
 
-  // if the list contains only a single node
-  if ((*last)->num == key && (*last)->next == *last) {
-  free(*last);
-  *last = NULL;
-  return;
+  // Page가 하나만 존재할 경우
+  if ((*last)->num == key && (*last)->next == *last) 
+  {
+	// last 를 NULL 로 지정
+  	free(*last);
+  	*last = NULL;
+  	return;
   }
 
   Page *temp = *last, *d;
 
-  // if last is to be deleted
-  if ((*last)->num == key) {
-  // find the node before the last node
-  while (temp->next != *last) temp = temp->next;
+  // key값을 가지는 Page가 last와 연결되어 있을 경우
+  if ((*last)->num == key) 
+  {
+  	// 이전 Page를 찾음
+  	while (temp->next != *last) 
+		temp = temp->next;
 
-  // point temp node to the next of last i.e. first node
-  temp->next = (*last)->next;
-  free(*last);
-  *last = temp->next;
+  	// 이전 Page를 연결하고 해당 Page 삭제
+  	temp->next = (*last)->next;
+  	free(*last);
+  	*last = temp->next;
   }
 
-  // travel to the node to be deleted
-  while (temp->next != *last && temp->next->num != key) {
-  temp = temp->next;
+  // key값을 가지는 Page 탐색
+  while (temp->next != *last && temp->next->num != key) 
+  {
+  	temp = temp->next;
   }
 
-  // if node to be deleted was found
-  if (temp->next->num == key) {
-  d = temp->next;
-  temp->next = d->next;
-  free(d);
+  // key값을 가지는 Page 삭제
+  if (temp->next->num == key) 
+  {
+  	d = temp->next;
+  	temp->next = d->next;
+  	free(d);
   }
 }
 
+// CircularQueue에 key값을 가지는 Page가 있는지 탐색
 Page* searchPage(Page* last, int key)
 {
     Page* p = NULL;
 
+	// 비어있을 경우 -> NULL 반환
     if (last == NULL) 
     {
         return p;
@@ -621,7 +626,8 @@ Page* searchPage(Page* last, int key)
     p = last->next;
     
     do 
-    {
+    {	
+		//찾았을 경우 -> 해당 Page 반환
         if(p->num == key)
         {
             return p;
@@ -629,10 +635,12 @@ Page* searchPage(Page* last, int key)
         p = p->next;
     } while (p != last->next);
 
+	// 찾지 못했을 경우 -> NULL 반환
     return p = NULL;
 }
 
 
+//CircularQueue 순회하여 출력 (Debug용)
 void traverse(Page* last) {
   Page* p;
 
@@ -651,6 +659,7 @@ void traverse(Page* last) {
   printf("\n");
 }
 
+//Optimal 알고리즘
 int OPT()
 {
 	// 페이지 프레임 개수 만큼 할당, Deque 초기화
@@ -726,14 +735,17 @@ void OPT_preplace(Deque *q, int index,FILE* fp)
 	int longest_index;
 
 	if(!is_empty(q))
-	{
+	{	
+		// Deque를 탐색하며
 		int i = q->front;
 		do
 		{
+			//가장 오랫동안 사용되지 않을 Page를 탐색
 			i = (i+1) % (pframe_num);
 			int j=index;
 			while(j<pstream_size)
 			{
+				// PageStream에서 해당 Page의 num을 찾았을 때 탈출
 				if (q->page[i].num == pstream[j].num)
 				{
 					break;
@@ -741,6 +753,7 @@ void OPT_preplace(Deque *q, int index,FILE* fp)
 				j++;
 			}
 
+			//가장 오랫동안 사용되지 않을 Page의 index 저장
 			if(j>longest)
 			{
 				longest = j;
@@ -751,6 +764,7 @@ void OPT_preplace(Deque *q, int index,FILE* fp)
 		
 	}
 	
+	// 교체
 	printf("Page Fault: Replace Page %d -> Page %d\n",q->page[longest_index].num,pstream[index].num);
 	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",q->page[longest_index].num,pstream[index].num);
 	q->page[longest_index] = pstream[index];
@@ -958,6 +972,7 @@ void LIFO_preplace(Deque* q,int index,FILE* fp)
 	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",del.num,pstream[index].num);
 }
 
+// LRU 알고리즘
 void LRU()
 {
 	//초기값 설정
@@ -1158,6 +1173,7 @@ void LFU()
 
 }
 
+// LFU Page Fault 처리 함수
 Page* LFU_pfault(Page* last, int index, FILE* fp)
 {
 	//가득 찼을 경우
@@ -1190,6 +1206,7 @@ Page* LFU_pfault(Page* last, int index, FILE* fp)
 	return last;
 }
 
+// LFU Page 교체 함수
 Page* LFU_preplace(Page* last, int index, FILE* fp)
 {
 	// 기본값 : 가장 오랫동안 참조되지 않은 페이지 -> last가 가리키는 Page
@@ -1226,6 +1243,7 @@ Page* LFU_preplace(Page* last, int index, FILE* fp)
 	return last;
 }
 
+// Second Chance 알고리즘
 void SC()
 {
 	//초기값 설정
@@ -1297,6 +1315,7 @@ void SC()
 
 }
 
+// Second Chance Page Fault 처리 함수
 Page* SC_pfault(Page* last, int index, FILE* fp)
 {
 	//가득 찼을 경우
@@ -1329,6 +1348,7 @@ Page* SC_pfault(Page* last, int index, FILE* fp)
 	return last;
 }
 
+// Second Chance Page 교체 함수
 Page* SC_preplace(Page* last, int index, FILE* fp)
 {
 	// 기본값 : FIFO -> 처음 들어간 것
