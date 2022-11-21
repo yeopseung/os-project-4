@@ -14,11 +14,16 @@
 #define FNAME_OPT "ouput_opt.txt"  // Optimal 알고리즘 결과 저장 파일
 #define FNAME_FIFO "ouput_fifo.txt"  // FIFO 알고리즘 결과 저장 파일
 #define FNAME_LIFO "output_lifo.txt" // LIFO 알고리즘 결과 저장 파일
+#define FNAME_LRU "output_lru.txt"   // LRU 알고리즘 결과 저장 파일
+#define FNAME_LFU "output_lfu.txt"   // LFU 알고리즘 결과 저장 파일
+#define FNAME_SC "output_sc.txt"     // SC 알고리즘 결과 저장 파일
 
 // 구조체
 typedef struct Page
 {
-	int num;
+	int num;	//page 번호
+	int ref;	//참조 횟수
+	struct Page * next;
 }Page;
 typedef struct Deque
 {
@@ -43,6 +48,14 @@ bool add_front(Deque *q, Page page);
 Page delete_rear(Deque *q);		
 void deque_print(Deque *q);	
 
+Page* addToEmpty(Page* last, int num, int ref);	//circularQueue 비어있는 링크드리스트에 Page 추가
+Page* addFront(Page* last, int num,int ref);	//circularQueue 맨 앞에 Page 추가
+Page* addEnd(Page* last, int num, int ref);		//circularQueue 맨 뒤에 Page 추가
+Page* addAfter(Page* last, int num, int item);	//circularQueue 특정 item 뒤에 Page 추가
+void deletePage(Page** last, int key);	//circularQueue key값을 가지는 Page 삭제
+Page* searchPage(Page* last, int key);	//circularQueue key값을 가지는 Page 리턴
+void traverse(Page* last);				//circularQueue 순회
+
 int OPT();
 void OPT_pfault(Deque *q, int index, FILE* fp);
 void OPT_preplace(Deque *q, int index, FILE* fp);
@@ -55,6 +68,19 @@ void LIFO();
 void LIFO_pfault(Deque *q, int index, FILE* fp);
 void LIFO_preplace(Deque* q,int index,FILE* fp);
 
+void LRU();
+Page* LRU_pfault(Page* last, int index, FILE* fp);
+Page* LRU_preplace(Page* last, int index, FILE* fp);
+
+void LFU();
+Page* LFU_pfault(Page* last, int index, FILE* fp);
+Page* LFU_preplace(Page* last, int index, FILE* fp);
+
+void SC();
+Page* SC_pfault(Page* last, int index, FILE* fp);
+Page* SC_preplace(Page* last, int index, FILE* fp);
+
+
 // 전역변수
 Page pstream[100000];		// 페이지 스트림
 int pstream_size = MIN_PSTREAM;		// 페이지 스트림 크기 (min: 500)
@@ -62,7 +88,7 @@ int pframe_num;				// 페이지 프레임 개수
 int input_method;			// 데이터 입력 방식
 bool isOptimal, isFIFO, isLIFO, isLRU, isLFU, isSC, isESC, isALL;	// 사용자가 선택할 알고리즘
 int opt_pfault;				// Optimal 알고리즘 Page Fault 횟수 (비교용)
-
+int cl_size;				// circularQueue 크기
 
 
 int main(void)
@@ -176,9 +202,9 @@ int main(void)
 	{
 		FIFO();
 		LIFO();
-		//LRU();
-		//LFU();
-		//SC();
+		LRU();
+		LFU();
+		SC();
 		//ESC();
 	}
 	else
@@ -189,14 +215,14 @@ int main(void)
 		if(isLIFO)
 			LIFO();
 		
-		// if(isLRU)
-		// 	//LRU();
+		if(isLRU)
+			LRU();
 
-		// if(isLFU)
-		// 	//LFU();
+		if(isLFU)
+			LFU();
 		
-		// if(isSC)
-		// 	//SC();
+		if(isSC)
+			SC();
 		
 		// if(isESC)
 		// 	//ESC();
@@ -442,6 +468,187 @@ void deque_print(Deque *q) {
 		
 	}
 	printf("\n");
+}
+
+Page* addToEmpty(Page* last, int num, int ref) {
+  if (last != NULL) return last;
+
+  // allocate memory to the new node
+  Page* newNode = (Page*)malloc(sizeof(Page));
+
+  // assign data to the new node
+  newNode->num = num;
+  newNode->ref = ref;
+
+  // assign last to newNode
+  last = newNode;
+
+  // create link to iteself
+  last->next = last;
+
+  return last;
+}
+
+// add node to the front
+Page* addFront(Page* last, int num,int ref) {
+  // check if the list is empty
+  if (last == NULL) return addToEmpty(last, num,ref);
+
+  // allocate memory to the new node
+  Page* newNode = (Page*)malloc(sizeof(Page));
+
+  // add data to the node
+  newNode->num = num;
+  newNode->ref = ref;
+
+  // store the address of the current first node in the newNode
+  newNode->next = last->next;
+
+  // make newNode as head
+  last->next = newNode;
+
+  return last;
+}
+
+// add node to the end
+Page* addEnd(Page* last, int num, int ref) {
+  // check if the node is empty
+  if (last == NULL) return addToEmpty(last, num,ref);
+
+  // allocate memory to the new node
+  Page* newNode = (Page*)malloc(sizeof(Page));
+
+  // add data to the node
+  newNode->num = num;
+  newNode->ref = ref;
+
+  // store the address of the head node to next of newNode
+  newNode->next = last->next;
+
+  // point the current last node to the newNode
+  last->next = newNode;
+
+  // make newNode as the last node
+  last = newNode;
+
+  return last;
+}
+
+// insert node after a specific node
+Page* addAfter(Page* last, int num, int item) {
+  // check if the list is empty
+  if (last == NULL) return NULL;
+
+  Page *newNode, *p;
+
+  p = last->next;
+  do {
+  // if the item is found, place newNode after it
+  if (p->num == item) {
+    // allocate memory to the new node
+    newNode = (Page*)malloc(sizeof(Page));
+
+    // add data to the node
+    newNode->num = num;
+
+    // make the next of the current node as the next of newNode
+    newNode->next = p->next;
+
+    // put newNode to the next of p
+    p->next = newNode;
+
+    // if p is the last node, make newNode as the last node
+    if (p == last) last = newNode;
+    return last;
+  }
+
+  p = p->next;
+  } while (p != last->next);
+
+  printf("\nThe given node is not present in the list");
+  return last;
+}
+
+
+
+// delete a node
+void deletePage(Page** last, int key) {
+  // if linked list is empty
+  if (*last == NULL) return;
+
+  // if the list contains only a single node
+  if ((*last)->num == key && (*last)->next == *last) {
+  free(*last);
+  *last = NULL;
+  return;
+  }
+
+  Page *temp = *last, *d;
+
+  // if last is to be deleted
+  if ((*last)->num == key) {
+  // find the node before the last node
+  while (temp->next != *last) temp = temp->next;
+
+  // point temp node to the next of last i.e. first node
+  temp->next = (*last)->next;
+  free(*last);
+  *last = temp->next;
+  }
+
+  // travel to the node to be deleted
+  while (temp->next != *last && temp->next->num != key) {
+  temp = temp->next;
+  }
+
+  // if node to be deleted was found
+  if (temp->next->num == key) {
+  d = temp->next;
+  temp->next = d->next;
+  free(d);
+  }
+}
+
+Page* searchPage(Page* last, int key)
+{
+    Page* p = NULL;
+
+    if (last == NULL) 
+    {
+        return p;
+    }
+
+    p = last->next;
+    
+    do 
+    {
+        if(p->num == key)
+        {
+            return p;
+        }
+        p = p->next;
+    } while (p != last->next);
+
+    return p = NULL;
+}
+
+
+void traverse(Page* last) {
+  Page* p;
+
+  if (last == NULL) {
+  printf("The list is empty");
+  return;
+  }
+
+  p = last->next;
+
+  do {
+  printf("%d(%d) ", p->num,p->ref);
+  p = p->next;
+
+  } while (p != last->next);
+  printf("\n");
 }
 
 int OPT()
@@ -749,4 +956,417 @@ void LIFO_preplace(Deque* q,int index,FILE* fp)
 
 	printf("Page Fault: Replace Page %d -> Page %d\n",del.num,pstream[index].num);
 	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",del.num,pstream[index].num);
+}
+
+void LRU()
+{
+	//초기값 설정
+	Page* last = NULL;
+	int pfault = 0;
+	cl_size = 0;
+
+
+
+	// 결과를 저장할 파일 open
+	FILE *fp;
+	if((fp = fopen(FNAME_LRU,"w+")) == NULL)
+	{
+		fprintf(stderr, "fopen error for %s\n",FNAME_LRU);
+		exit(1);
+	}
+
+	printf(">> LRU <<\n");
+	fprintf(fp,">> LRU <<\n");
+
+	// 페이지 스트림 읽기
+	for(int i=0; i<pstream_size; i++)
+	{	
+		Page * p;
+		// 페이지 프레임 중 원하는 Page 탐색
+		if((p = searchPage(last, pstream[i].num)) == NULL)
+		{
+			//존재하지 않을 경우 -> Page Fault
+			pfault++;
+			last = LRU_pfault(last,i,fp);
+		}
+		else
+		{
+			//존재할 경우 -> Hit
+			//Page 삭제 후 해당 Page를 상단으로 옮김
+			int num = p->num;
+			deletePage(&last,num);
+			last = addEnd(last,num,0);
+		}
+		//traverse(last);
+
+	}
+
+	//Page Fault 총 횟수 출력
+	printf("Total Page Fault: %d\n",pfault);
+	fprintf(fp,"Total Page Fault: %d\n",pfault);
+
+	//Optimal 과 비교
+	if(pfault > opt_pfault)
+	{
+		printf("Difference Of Page Fault: LRU %d > Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LRU %d > Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else if(pfault == opt_pfault)
+	{
+		printf("Difference Of Page Fault: LRU %d == Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LRU %d == Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else
+	{
+		printf("Difference Of Page Fault: LRU %d < Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LRU %d < Optimal %d\n\n",pfault,opt_pfault);
+	}
+	
+	
+	//메모리 해제
+	free(last);
+	fclose(fp);
+
+}
+
+Page* LRU_pfault(Page* last, int index, FILE* fp)
+{
+
+	//가득 찼을 경우
+	if(cl_size == pframe_num-1)
+	{
+		//page replacement
+		last = LRU_preplace(last,index,fp);
+
+	}
+	//가득 차지 않았을 경우 
+	else
+	{
+		//circularQueue 에 page 추가
+		if(last == NULL)
+		{	
+			// Empty일때
+			last = addToEmpty(last,pstream[index].num,0);
+			cl_size++;
+		}
+		else
+		{	
+			// 값이 존재할때
+			last = addEnd(last,pstream[index].num,0);
+			cl_size++;
+		}
+		printf("Page Fault: Add Page %d\n",pstream[index].num);
+		fprintf(fp,"Page Fault: Add Page %d\n",pstream[index].num);
+	}
+	
+	return last;
+	
+}
+
+Page* LRU_preplace(Page* last, int index, FILE* fp)
+{
+	// 가장 오랫동안 참조되지 않은 페이지 -> last가 가리키는 Page
+	Page* del;
+	del = last->next;
+
+
+	printf("Page Fault: Replace Page %d -> Page %d\n",del->num,pstream[index].num);
+	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",del->num,pstream[index].num);
+
+	// 가장 오랫동안 참조되지 않은 페이지 삭제
+	deletePage(&last,del->num);
+	
+
+	// 새로운 Page 추가
+	last = addEnd(last,pstream[index].num,0);
+	
+	return last;
+}
+
+
+//LFU 알고리즘
+void LFU()
+{
+	//초기값 설정
+	Page* last = NULL;
+	int pfault = 0;
+	cl_size = 0;
+
+
+
+	// 결과를 저장할 파일 open
+	FILE *fp;
+	if((fp = fopen(FNAME_LFU,"w+")) == NULL)
+	{
+		fprintf(stderr, "fopen error for %s\n",FNAME_LFU);
+		exit(1);
+	}
+
+	printf(">> LFU <<\n");
+	fprintf(fp,">> LFU <<\n");
+
+	// 페이지 스트림 읽기
+	for(int i=0; i<pstream_size; i++)
+	{	
+		Page * p;
+		// 페이지 프레임 중 원하는 Page 탐색
+		if((p = searchPage(last, pstream[i].num)) == NULL)
+		{
+			//존재하지 않을 경우 -> Page Fault
+			pfault++;
+			last = LFU_pfault(last,i,fp);
+		}
+		else
+		{
+			//존재할 경우 -> Hit
+			//Page 삭제 후 해당 Page를 상단으로 옮김
+			//참조횟수 +1
+			int num = p->num;
+			int ref = p->ref+1;
+			deletePage(&last,num);
+			last = addEnd(last,num,ref);
+		}
+		//traverse(last);
+
+	}
+
+	//Page Fault 총 횟수 출력
+	printf("Total Page Fault: %d\n",pfault);
+	fprintf(fp,"Total Page Fault: %d\n",pfault);
+
+	//Optimal 과 비교
+	if(pfault > opt_pfault)
+	{
+		printf("Difference Of Page Fault: LFU %d > Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LFU %d > Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else if(pfault == opt_pfault)
+	{
+		printf("Difference Of Page Fault: LFU %d == Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LFU %d == Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else
+	{
+		printf("Difference Of Page Fault: LFU %d < Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: LFU %d < Optimal %d\n\n",pfault,opt_pfault);
+	}
+	
+	
+	//메모리 해제
+	free(last);
+	fclose(fp);
+
+}
+
+Page* LFU_pfault(Page* last, int index, FILE* fp)
+{
+	//가득 찼을 경우
+	if(cl_size == pframe_num-1)
+	{
+		//page replacement
+		last = LFU_preplace(last,index,fp);
+
+	}
+	//가득 차지 않았을 경우 
+	else
+	{
+		//circularQueue 에 page 추가
+		if(last == NULL)
+		{	
+			// Empty일때
+			last = addToEmpty(last,pstream[index].num,0);
+			cl_size++;
+		}
+		else
+		{	
+			// 값이 존재할때
+			last = addEnd(last,pstream[index].num,0);
+			cl_size++;
+		}
+		printf("Page Fault: Add Page %d\n",pstream[index].num);
+		fprintf(fp,"Page Fault: Add Page %d\n",pstream[index].num);
+	}
+	
+	return last;
+}
+
+Page* LFU_preplace(Page* last, int index, FILE* fp)
+{
+	// 기본값 : 가장 오랫동안 참조되지 않은 페이지 -> last가 가리키는 Page
+	Page* del;
+	del = last->next;
+
+	
+	//	가장 적게 참조되지 않은 페이지 탐색
+	Page* p;
+	int min_ref = MAX_PSTREAM;
+  	p = last->next;
+  	do 
+	{
+		// 참조횟수가 min_ref 보다 작을 경우 -> 삭제 대상
+  		if(min_ref > p->ref)
+		{
+			min_ref = p->ref;
+			del = p;
+		}
+  		p = p->next;
+
+ 	} while (p != last->next);
+  
+	printf("Page Fault: Replace Page %d -> Page %d\n",del->num,pstream[index].num);
+	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",del->num,pstream[index].num);
+
+	// 가장 오랫동안 참조되지 않은 페이지 삭제
+	deletePage(&last,del->num);
+	
+
+	// 새로운 Page 추가
+	last = addEnd(last,pstream[index].num,0);
+	
+	return last;
+}
+
+void SC()
+{
+	//초기값 설정
+	Page* last = NULL;
+	int pfault = 0;
+	cl_size = 0;
+
+
+
+	// 결과를 저장할 파일 open
+	FILE *fp;
+	if((fp = fopen(FNAME_SC,"w+")) == NULL)
+	{
+		fprintf(stderr, "fopen error for %s\n",FNAME_SC);
+		exit(1);
+	}
+
+	printf(">> SC <<\n");
+	fprintf(fp,">> SC <<\n");
+
+	// 페이지 스트림 읽기
+	for(int i=0; i<pstream_size; i++)
+	{	
+		Page * p;
+		// 페이지 프레임 중 원하는 Page 탐색
+		if((p = searchPage(last, pstream[i].num)) == NULL)
+		{
+			//존재하지 않을 경우 -> Page Fault
+			pfault++;
+			last = SC_pfault(last,i,fp);
+		}
+		else
+		{
+			//존재할 경우 -> Hit
+			//참조비트를 1로 수정
+			
+			p->ref = 1;
+			
+		}
+		traverse(last);
+
+	}
+
+	//Page Fault 총 횟수 출력
+	printf("Total Page Fault: %d\n",pfault);
+	fprintf(fp,"Total Page Fault: %d\n",pfault);
+
+	//Optimal 과 비교
+	if(pfault > opt_pfault)
+	{
+		printf("Difference Of Page Fault: SC %d > Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: SC %d > Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else if(pfault == opt_pfault)
+	{
+		printf("Difference Of Page Fault: SC %d == Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: SC %d == Optimal %d\n\n",pfault,opt_pfault);
+	}
+	else
+	{
+		printf("Difference Of Page Fault: SC %d < Optimal %d\n\n",pfault,opt_pfault);
+		fprintf(fp,"Difference Of Page Fault: SC %d < Optimal %d\n\n",pfault,opt_pfault);
+	}
+	
+	
+	//메모리 해제
+	free(last);
+	fclose(fp);
+
+}
+
+Page* SC_pfault(Page* last, int index, FILE* fp)
+{
+	//가득 찼을 경우
+	if(cl_size == pframe_num-1)
+	{
+		//page replacement
+		last = SC_preplace(last,index,fp);
+
+	}
+	//가득 차지 않았을 경우 
+	else
+	{
+		//circularQueue 에 page 추가
+		if(last == NULL)
+		{	
+			// Empty일때
+			last = addToEmpty(last,pstream[index].num,1);
+			cl_size++;
+		}
+		else
+		{	
+			// 값이 존재할때
+			last = addEnd(last,pstream[index].num,1);
+			cl_size++;
+		}
+		printf("Page Fault: Add Page %d\n",pstream[index].num);
+		fprintf(fp,"Page Fault: Add Page %d\n",pstream[index].num);
+	}
+	
+	return last;
+}
+
+Page* SC_preplace(Page* last, int index, FILE* fp)
+{
+	// 기본값 : FIFO -> 처음 들어간 것
+	Page* del;
+	del = last->next;
+
+	
+	//	참조비트 탐색
+	Page* p;
+	int min_ref = MAX_PSTREAM;
+  	p = last->next;
+  	do 
+	{
+		// 참조비트가 1인 경우 
+  		if(p->ref == 1)
+		{
+			// 참조비트를 0으로 변경하고 넘어감
+			p->ref = 0;
+			p = p->next;
+		}
+		// 참조비트가 0인 경우
+		else
+		{
+			// 교체 대상 -> break;
+			del = p;
+			break;
+		}
+  		
+ 	} while (p != last->next);
+	
+
+	printf("Page Fault: Replace Page %d -> Page %d\n",del->num,pstream[index].num);
+	fprintf(fp,"Page Fault: Replace Page %d -> Page %d\n",del->num,pstream[index].num);
+
+	//페이지 삭제
+	deletePage(&last,del->num);
+	// 새로운 Page 추가
+	last = addEnd(last,pstream[index].num,1);
+	
+	return last;
 }
