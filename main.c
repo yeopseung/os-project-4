@@ -1265,7 +1265,7 @@ void SC()
 			p->ref = 1;
 			
 		}
-		traverse(last);
+		//traverse(last);
 
 	}
 
